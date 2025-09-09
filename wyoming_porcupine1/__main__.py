@@ -18,8 +18,6 @@ from wyoming.info import Attribution, Describe, Info, WakeModel, WakeProgram
 from wyoming.server import AsyncEventHandler, AsyncServer
 from wyoming.wake import Detect, Detection, NotDetected
 
-from . import __version__
-
 _LOGGER = logging.getLogger()
 _DIR = Path(__file__).parent
 
@@ -52,7 +50,9 @@ class State:
         self.detector_cache: Dict[str, List[Detector]] = defaultdict(list)
         self.detector_lock = asyncio.Lock()
 
-    async def get_porcupine(self, keyword_name: str, sensitivity: float) -> Detector:
+    async def get_porcupine(
+        self, keyword_name: str, sensitivity: float, access_key: str
+    ) -> Detector:
         keyword = self.keywords.get(keyword_name)
         if keyword is None:
             raise ValueError(f"No keyword {keyword_name}")
@@ -80,6 +80,7 @@ class State:
             model_path=str(self.pv_lib_paths[keyword.language]),
             keyword_paths=[str(keyword.model_path)],
             sensitivities=[sensitivity],
+            access_key=access_key,
         )
 
         return Detector(porcupine, sensitivity)
@@ -94,21 +95,18 @@ async def main() -> None:
     )
     parser.add_argument("--system", help="linux or raspberry-pi")
     parser.add_argument("--sensitivity", type=float, default=0.5)
+    parser.add_argument("--access-key", type=str, required=True)
     #
     parser.add_argument("--debug", action="store_true", help="Log DEBUG messages")
     parser.add_argument(
-        "--log-format", default=logging.BASIC_FORMAT, help="Format for log messages"
+        "--custom-keyword-dir",
+        action="append",
+        default=[],
+        help="Path to directory with custom keywords",
     )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=__version__,
-        help="Print version and exit",
-    )
+    #
     args = parser.parse_args()
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.INFO, format=args.log_format
-    )
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
     _LOGGER.debug(args)
 
     if not args.system:
@@ -119,6 +117,7 @@ async def main() -> None:
             args.system = "linux"
 
     args.data_dir = Path(args.data_dir)
+    args.custom_keyword_dir = [Path(d) for d in args.custom_keyword_dir]
 
     # lang -> path
     pv_lib_paths: Dict[str, Path] = {}
@@ -137,6 +136,23 @@ async def main() -> None:
         kw_name = kw_path.stem.rsplit("_", maxsplit=1)[0]
         keywords[kw_name] = Keyword(language=kw_lang, name=kw_name, model_path=kw_path)
 
+    # custom models, files are of the form mykeyword_en_linux_v2_2_0.ppn
+    for dir in args.custom_keyword_dir:
+        for kw_path in dir.glob("*.ppn"):
+            try:
+                (kw_name, kw_lang, kw_system, _) = kw_path.stem.split("_", maxsplit=3)
+            except:
+                _LOGGER.warning("Incorrect keyword filename (%s), ignoring", kw_path)
+                continue
+
+            if kw_system != args.system:
+                _LOGGER.warning("Incorrect keyword system (%s), ignoring", kw_path)
+                continue
+
+            keywords[kw_name] = Keyword(
+                language=kw_lang, name=kw_name, model_path=kw_path
+            )
+
     wyoming_info = Info(
         wake=[
             WakeProgram(
@@ -146,19 +162,16 @@ async def main() -> None:
                     name="Picovoice", url="https://github.com/Picovoice/porcupine"
                 ),
                 installed=True,
-                version=__version__,
                 models=[
                     WakeModel(
                         name=kw.name,
                         description=f"{kw.name} ({kw.language})",
-                        phrase=kw.name,
                         attribution=Attribution(
                             name="Picovoice",
                             url="https://github.com/Picovoice/porcupine",
                         ),
                         installed=True,
                         languages=[kw.language],
-                        version="1.9.0",
                     )
                     for kw in keywords.values()
                 ],
@@ -283,7 +296,7 @@ class Porcupine1EventHandler(AsyncEventHandler):
 
     async def _load_keyword(self, keyword_name: str):
         self.detector = await self.state.get_porcupine(
-            keyword_name, self.cli_args.sensitivity
+            keyword_name, self.cli_args.sensitivity, self.cli_args.access_key
         )
         self.keyword_name = keyword_name
         self.chunk_format = "h" * self.detector.porcupine.frame_length
@@ -292,13 +305,8 @@ class Porcupine1EventHandler(AsyncEventHandler):
 
 # -----------------------------------------------------------------------------
 
-
-def run() -> None:
-    asyncio.run(main())
-
-
 if __name__ == "__main__":
     try:
-        run()
+        asyncio.run(main())
     except KeyboardInterrupt:
         pass
