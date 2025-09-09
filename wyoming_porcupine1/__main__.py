@@ -141,7 +141,7 @@ async def main() -> None:
         for kw_path in dir.glob("*.ppn"):
             try:
                 (kw_name, kw_lang, kw_system, _) = kw_path.stem.split("_", maxsplit=3)
-            except:
+            except ValueError:
                 _LOGGER.warning("Incorrect keyword filename (%s), ignoring", kw_path)
                 continue
 
