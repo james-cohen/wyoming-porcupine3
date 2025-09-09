@@ -156,12 +156,13 @@ async def main() -> None:
     wyoming_info = Info(
         wake=[
             WakeProgram(
-                name="porcupine1",
+                name="porcupine3",
                 description="On-device wake word detection powered by deep learning",
                 attribution=Attribution(
                     name="Picovoice", url="https://github.com/Picovoice/porcupine"
                 ),
                 installed=True,
+                version="3.0.5",
                 models=[
                     WakeModel(
                         name=kw.name,
@@ -172,7 +173,7 @@ async def main() -> None:
                         ),
                         installed=True,
                         languages=[kw.language],
-                        version="3.0.5",
+                        version="1.0.0",
                         phrase=kw.name.replace('-', ' ')
                     )
                     for kw in keywords.values()
