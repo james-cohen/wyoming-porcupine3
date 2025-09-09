@@ -55,7 +55,7 @@ class State:
     ) -> Detector:
         keyword = self.keywords.get(keyword_name)
         if keyword is None:
-            raise ValueError(f"No keyword {keyword_name}")
+            raise ValueError(f"No keyword {keyword_name} - Options are {self.keywords.keys()}")
 
         # Check cache first for matching detector
         async with self.detector_lock:
