@@ -136,7 +136,7 @@ async def main() -> None:
         kw_name = kw_path.stem.rsplit("_", maxsplit=1)[0]
         keywords[kw_name] = Keyword(language=kw_lang, name=kw_name, model_path=kw_path)
 
-    # custom models, files are of the form mykeyword_en_linux_v2_2_0.ppn
+    # custom models, files are of the form Custom-Phrase_en_raspberry-pi_v3_0_0.ppn
     for dir in args.custom_keyword_dir:
         for kw_path in dir.glob("*.ppn"):
             try:
@@ -172,6 +172,8 @@ async def main() -> None:
                         ),
                         installed=True,
                         languages=[kw.language],
+                        version="3.0.5",
+                        phrase=kw.name.replace('-', ' ')
                     )
                     for kw in keywords.values()
                 ],
